@@ -10,7 +10,7 @@ Every submission becomes a row in your sheet, and the person gets an email with 
 1. In the sheet: **Extensions → Apps Script**.
 2. Delete everything in `Code.gs` and paste the whole of `integrations/google-sheets/Code.gs`.
 3. At the top of the script you can change:
-   - `TEAM_EMAIL`: your inbox, to get a short note for every sign-up (leave `''` to turn off).
+   - `TEAM_EMAIL`: gets every submission in full (set to getrydoapp@gmail.com). Replying answers the person who signed up.
    - `SENDER_NAME`: the sender name people see (default `RYDO`).
    - `SITE_URL`: where the email's "Back to RYDO" button goes.
 4. Click **Save** (disk icon).

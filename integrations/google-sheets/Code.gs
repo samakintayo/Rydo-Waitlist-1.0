@@ -8,8 +8,8 @@
 
 // ---- Settings -------------------------------------------------------------------------------
 const SHEET_NAME = 'Submissions';
-/** Optional: your team inbox gets a short note for every new sign-up. Leave '' to turn it off. */
-const TEAM_EMAIL = '';
+/** Team inbox: gets every submission in full (reply goes straight to the person). '' turns it off. */
+const TEAM_EMAIL = 'getrydoapp@gmail.com';
 /** Name shown as the sender of the confirmation email. */
 const SENDER_NAME = 'RYDO';
 /** Where "Back to RYDO" in the email points. */
@@ -165,12 +165,33 @@ function sendPassEmail(entry, reference) {
   });
 }
 
+/** Every submission, in full, to the team inbox. Replying answers the person who signed up. */
 function notifyTeam(entry, reference) {
+  const rows = [
+    ['Reference', reference],
+    ['Full name', entry.name],
+    ['Email', entry.email],
+    ['Phone', entry.phone],
+    ['City', entry.city],
+    ['Roles', entry.roles.join(', ')],
+    ['Waitlist', entry.partner ? 'Partner' : 'Customer'],
+    ['Consent to updates', 'Yes'],
+    ['Joined from', entry.page],
+    ['Submitted at', Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')],
+  ];
+  const table = rows.map(([label, value]) =>
+    '<tr><td style="padding:8px 12px;color:#4D5A50;font-size:13px;border-bottom:1px solid #E6EBDD">' + esc(label) + '</td>' +
+    '<td style="padding:8px 12px;font-size:14px;font-weight:700;border-bottom:1px solid #E6EBDD">' + esc(value) + '</td></tr>').join('');
   MailApp.sendEmail({
     to: TEAM_EMAIL,
-    subject: 'New RYDO waitlist sign-up: ' + entry.name + ' (' + entry.roles.join(', ') + ')',
-    name: SENDER_NAME,
-    body: [reference, entry.name, entry.email, entry.phone, entry.city, 'Roles: ' + entry.roles.join(', ')].join('\n'),
+    replyTo: entry.email,
+    subject: 'New waitlist sign-up: ' + entry.name + ' · ' + entry.roles.join(', ') + ' · ' + entry.city,
+    name: SENDER_NAME + ' Waitlist',
+    htmlBody: '<div style="font-family:Arial,Helvetica,sans-serif;color:#00170A">' +
+      '<p style="margin:0 0 12px;font-size:16px;font-weight:700">New ' + (entry.partner ? 'partner' : 'customer') + ' on the RYDO waitlist</p>' +
+      '<table style="border-collapse:collapse;min-width:320px">' + table + '</table>' +
+      '<p style="margin:12px 0 0;font-size:12px;color:#4D5A50">Reply to this email to answer ' + esc(entry.name.split(/\s+/)[0]) + ' directly. All sign-ups are in the RYDO Waitlist sheet.</p></div>',
+    body: rows.map(([label, value]) => label + ': ' + value).join('\n'),
   });
 }
 

@@ -1,5 +1,18 @@
+# Dependencies and build output
 node_modules
 dist
+.netlify
+
+# Environment files: keep values out of git. Only the example is committed.
+.env
+.env.*
+!.env.example
+
+# Logs and local tooling
+*.log
+npm-debug.log*
 .DS_Store
-.env.local
-.env*.local
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.local
