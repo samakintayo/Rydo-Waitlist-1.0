@@ -2,3 +2,7 @@
 html{scroll-behavior:smooth}
 body{margin:0;background:#F8FAF0;color:#00170A;font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 img{max-width:100%}
+
+/* <picture> wrappers don't affect layout: the <img> inside is styled and positioned as before. */
+picture{display:contents}
+img{height:auto}

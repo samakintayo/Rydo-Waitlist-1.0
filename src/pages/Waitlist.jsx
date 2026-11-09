@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from '../lib/router.jsx';
 import { F } from '../assets/index.js';
+import Img from '../components/Img.jsx';
 import { submitWaitlist } from '../lib/waitlist-api.js';
 import '../styles/waitlist.css';
 
@@ -81,7 +82,7 @@ export default function Waitlist() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
           </Link>
         </div>
-        <img className="wl-hero" src={F.waitlistHero} alt="A RYDO driver beside a RYDO car, with the app open" />
+        <Img className="wl-hero" img={F.waitlistHero} alt="A RYDO driver beside a RYDO car, with the app open" sizes="(max-width: 980px) 0px, 46vw" priority />
         <div className="wl-intro">
           <p className="wl-eye lime">RYDO waitlist</p>
           <h2>Your next move starts here.</h2>

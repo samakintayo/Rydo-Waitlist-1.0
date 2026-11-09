@@ -3,6 +3,7 @@ import { Link } from '../lib/router.jsx';
 import { F } from '../assets/index.js';
 import { FAQ } from '../data.js';
 import Phone from './Phone.jsx';
+import Img from './Img.jsx';
 
 /** Lime pill with the round arrow (Figma "Link"); `dark` is the forest version used on lime. */
 export function JoinButton({ to, children, dark = false }) {
@@ -51,8 +52,8 @@ export function Hero({ a, swap }) {
       </div>
       <div className="band">
         <div className="band-word" aria-hidden="true"><span>RYDO</span><span>RYDO</span></div>
-        <img className="hand left" src={F.handLeft} alt="A hand holding RYDO showing ride options and a negotiated fare" fetchPriority="high" />
-        <img className="hand right" src={F.handRight} alt="A hand holding RYDO showing the home screen with nearby cars" fetchPriority="high" />
+        <Img className="hand left" img={F.handLeft} alt="A hand holding RYDO showing ride options and a negotiated fare" sizes="(max-width: 720px) 70vw, 44vw" priority />
+        <Img className="hand right" img={F.handRight} alt="A hand holding RYDO showing the home screen with nearby cars" sizes="(max-width: 720px) 43vw, 27vw" priority />
         <span className="tag t1">{a.tags[0]}</span>
         <span className="tag t2">{a.tags[1]}</span>
       </div>
@@ -83,8 +84,8 @@ export function Strip({ items }) {
 function PhoneZone({ img, alt, img2, alt2, className = '' }) {
   return (
     <div className={`pz ${className}`.trim()}>
-      <Phone src={img} alt={alt} style={{ '--l': img2 ? '31%' : '50%' }} />
-      {img2 && <Phone className="p2" src={img2} alt={alt2} style={{ '--l': '69%', rotate: '3deg' }} />}
+      <Phone img={img} alt={alt} style={{ '--l': img2 ? '31%' : '50%' }} />
+      {img2 && <Phone className="p2" img={img2} alt={alt2} style={{ '--l': '69%', rotate: '3deg' }} />}
     </div>
   );
 }
@@ -148,7 +149,7 @@ export function How({ a, swap, audience }) {
         <span className="ring r1" aria-hidden="true" />
         <span className="ring r2" aria-hidden="true" />
         <div className="how-phone" id="how-phone" role="tabpanel" aria-labelledby={`how-tab-${current}`}>
-          <Phone key={`${audience}-${current}`} className="fade" src={img} alt={alt} />
+          <Phone key={`${audience}-${current}`} className="fade" img={img} alt={alt} />
         </div>
       </div>
     </section>
@@ -165,7 +166,7 @@ export function Features({ a, swap }) {
           <article key={card.title} className={`fcard ${card.tone}${card.wide ? ' wide' : ''}${card.photo ? ' has-photo' : ''}`}>
             <h3>{card.title}</h3>
             <p>{card.text}</p>
-            {card.photo ? <img className="fphoto" src={card.photo} alt={card.alt} loading="lazy" /> : <PhoneZone img={card.img} alt={card.alt} img2={card.img2} alt2={card.alt2} />}
+            {card.photo ? <Img className="fphoto" img={card.photo} alt={card.alt} sizes="(max-width: 720px) 90vw, 517px" /> : <PhoneZone img={card.img} alt={card.alt} img2={card.img2} alt2={card.alt2} />}
           </article>
         ))}
       </div>
@@ -215,10 +216,10 @@ export function Banner({ a, swap }) {
       </div>
       <div className={`banner-art sw ${swap}`}>
         {a.banner.kind === 'photo'
-          ? <img className="woman" src={a.banner.img} alt={a.banner.alt} loading="lazy" />
+          ? <Img className="woman" img={a.banner.img} alt={a.banner.alt} sizes="(max-width: 1180px) 100vw, 53vw" />
           : <>
-            <img className="scooter" src={a.banner.scooter} alt="RYDO dispatch scooter" loading="lazy" />
-            <img className="car" src={a.banner.car} alt="RYDO car" loading="lazy" />
+            <Img className="scooter" img={a.banner.scooter} alt="RYDO dispatch scooter" sizes="(max-width: 1180px) 44vw, 29vw" />
+            <Img className="car" img={a.banner.car} alt="RYDO car" sizes="(max-width: 1180px) 66vw, 45vw" />
           </>}
       </div>
     </section>
