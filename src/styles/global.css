@@ -1,0 +1,4 @@
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#F8FAF0;color:#00170A;font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+img{max-width:100%}
