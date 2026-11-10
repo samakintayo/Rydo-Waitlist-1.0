@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from '../lib/router.jsx';
 import { F } from '../assets/index.js';
 import Img from '../components/Img.jsx';
-import { submitWaitlist } from '../lib/waitlist-api.js';
+import { newReference, submitWaitlist } from '../lib/waitlist-api.js';
 import '../styles/waitlist.css';
 
 /** Waitlist flow (Figma 76:1641, 76:1714, 76:1845, 76:1944): name → roles → contact → pass. */
@@ -41,6 +41,7 @@ export default function Waitlist() {
   const [consent, setConsent] = useState(false);
   const [err, setErr] = useState({});
   const [busy, setBusy] = useState(false);
+  const [reference, setReference] = useState('');
   // Hidden from people; bots fill it, and the sheet script ignores those submissions.
   const [company, setCompany] = useState('');
   const set = key => event => { setF({ ...f, [key]: event.target.value }); if (err[key]) setErr({ ...err, [key]: '' }); };
@@ -62,12 +63,16 @@ export default function Waitlist() {
       if (Object.values(e).some(Boolean)) return setErr(e);
       if (busy) return;
       setBusy(true);
-      submitWaitlist({ name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), city: f.city.trim(), roles: tags, consent, company, page: window.location.href })
+      // Bots fill the hidden field; skip them quietly.
+      if (company) return go(3);
+      const ref = reference || newReference();
+      setReference(ref);
+      submitWaitlist({ reference: ref, name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), city: f.city.trim(), roles: tags.join(', '), waitlist: partner ? 'Partner' : 'Customer', consent: 'Yes', page: window.location.href })
         .then(() => go(3), failure => setErr({ submit: failure.message }))
         .finally(() => setBusy(false));
     }
   };
-  const restart = () => { setF({ name: '', email: '', phone: '', city: '' }); setSel(initialRoles()); setConsent(false); go(0); };
+  const restart = () => { setF({ name: '', email: '', phone: '', city: '' }); setSel(initialRoles()); setConsent(false); setReference(''); go(0); };
   const submit = event => { event.preventDefault(); next(); };
   const back = () => go(step - 1);
 
@@ -135,7 +140,7 @@ export default function Waitlist() {
                 ? 'You’re on the RYDO partner waitlist. We’ll share onboarding steps and access-plan details when they’re ready.'
                 : 'You’re on the RYDO waitlist. We’ll let you know when bookings become available in your area.'} />
               <div className={`wl-pass${partner ? ' partner' : ''}`}>
-                <div className="wl-pass-top"><span className="wl-lbl">RYDO waitlist pass</span><span className="wl-r" aria-hidden="true">R</span></div>
+                <div className="wl-pass-top"><span className="wl-lbl">RYDO waitlist pass{reference ? ` · ${reference}` : ''}</span><span className="wl-r" aria-hidden="true">R</span></div>
                 <div><span className="wl-lbl">Name</span><p className="wl-pname">{f.name.trim()}</p></div>
                 <div className="wl-meta">
                   <div><span className="wl-lbl">Selected roles</span><div className="wl-chips">{tags.map(t => <span key={t}>{t}</span>)}</div></div>

@@ -1,133 +1,197 @@
 /**
- * RYDO waitlist → Google Sheets + confirmation email.
+ * RYDO waitlist → Google Form → Google Sheet, with confirmation emails.
  *
- * Paste this into the sheet's Extensions → Apps Script, run setup() once, then deploy as a
- * Web app (Execute as: Me, Who has access: Anyone). The website posts each submission here.
- * Full steps: integrations/google-sheets/SETUP.md
+ * Needs no public web app: the website submits to a Google Form linked to this sheet, and a
+ * form-submit trigger (running as you) sends the emails.
+ *
+ * Setup: paste into Extensions → Apps Script, run setupForm() once, copy the website setting it
+ * writes to the "Website setup" tab into Netlify. Full steps: integrations/google-sheets/SETUP.md
  */
 
 // ---- Settings -------------------------------------------------------------------------------
-const SHEET_NAME = 'Submissions';
 /** Team inbox: gets every submission in full (reply goes straight to the person). '' turns it off. */
 const TEAM_EMAIL = 'getrydoapp@gmail.com';
-/** Name shown as the sender of the confirmation email. */
+/** Name shown as the sender of the emails. */
 const SENDER_NAME = 'RYDO';
 /** Where "Back to RYDO" in the email points. */
 const SITE_URL = 'https://getrydo.app';
 
-const HEADERS = ['Submitted at', 'Reference', 'Full name', 'Email', 'Phone', 'City', 'Roles', 'Waitlist', 'Consent', 'Page', 'Email sent'];
-const ROLES = ['Ride', 'Send', 'Drive', 'Dispatch'];
+const SHEET_NAME = 'Submissions';
+/** Form questions, in order. With the form's Timestamp first, they fill columns A–J; the script writes K. */
+const QUESTIONS = ['Reference', 'Full name', 'Email', 'Phone', 'City', 'Roles', 'Waitlist', 'Consent', 'Page'];
+/** The keys the website sends for each question (see src/lib/waitlist-api.js). */
+const KEYS = ['reference', 'name', 'email', 'phone', 'city', 'roles', 'waitlist', 'consent', 'page'];
+const STATUS_HEADER = 'Email sent';
 
-/** Run once from the editor: creates the Submissions tab with headers and formatting. */
-function setup() {
+/**
+ * Run once from the editor. Creates the form, links it to this sheet as "Submissions", adds the
+ * email trigger and the Summary tab, and writes the website setting to the "Website setup" tab.
+ * Safe to run again: it reuses the same form.
+ */
+function setupForm() {
   const book = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = book.getSheetByName(SHEET_NAME) || book.insertSheet(SHEET_NAME);
-  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold').setBackground('#03291D').setFontColor('#C1FF2A');
-  sheet.setFrozenRows(1);
-  sheet.setColumnWidths(1, HEADERS.length, 150);
-  sheet.setColumnWidth(3, 200);
-  sheet.setColumnWidth(4, 240);
-  // Ask for permission to send email now, so the first real submission doesn't fail.
+  const props = PropertiesService.getScriptProperties();
+
+  let form = null;
+  const savedId = props.getProperty('FORM_ID');
+  if (savedId) { try { form = FormApp.openById(savedId); } catch (error) { form = null; } }
+  if (!form) {
+    form = FormApp.create('RYDO Waitlist (website)');
+    form.setDescription('Filled in by the getrydo.app waitlist. Answers go to the RYDO Waitlist sheet.');
+    QUESTIONS.forEach(title => form.addTextItem().setTitle(title));
+    form.setDestination(FormApp.DestinationType.SPREADSHEET, book.getId());
+    props.setProperty('FORM_ID', form.getId());
+  }
+  form.setCollectEmail(false);
+  form.setAcceptingResponses(true);
+  // Anyone can submit without signing in. (A company Google account may block this.)
+  try { form.setRequireLogin(false); } catch (error) { console.warn('Could not turn off sign-in: ' + error); }
+
+  SpreadsheetApp.flush();
+  const linked = linkedSheet(book, form);
+  if (!linked) throw new Error('The form isn’t linked to this sheet yet. Wait a few seconds and run setupForm again.');
+
+  // The form's tab becomes "Submissions". An older, empty Submissions tab is removed.
+  const old = book.getSheetByName(SHEET_NAME);
+  if (old && old.getSheetId() !== linked.getSheetId()) {
+    if (old.getLastRow() <= 1) book.deleteSheet(old);
+    else old.setName(SHEET_NAME + ' (old) ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+  }
+  linked.setName(SHEET_NAME);
+  const width = QUESTIONS.length + 2;
+  linked.getRange(1, width).setValue(STATUS_HEADER);
+  linked.getRange(1, 1, 1, width).setFontWeight('bold').setBackground('#03291D').setFontColor('#C1FF2A');
+  linked.setFrozenRows(1);
+  linked.setColumnWidths(1, width, 150);
+  linked.setColumnWidth(3, 200);
+  linked.setColumnWidth(4, 240);
+  linked.getRange('E2:E').setNumberFormat('@');
+
+  // The email trigger runs as you whenever the form adds a row.
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'onWaitlistSubmit').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('onWaitlistSubmit').forSpreadsheet(book).onFormSubmit().create();
+
+  buildSummary(book);
+
+  // What the website needs: the form's submit address and the field id for each question.
+  const fields = {};
+  form.getItems().forEach(item => {
+    const index = QUESTIONS.indexOf(item.getTitle());
+    if (index !== -1) fields[KEYS[index]] = 'entry.' + item.getId();
+  });
+  const setting = JSON.stringify({ action: form.getPublishedUrl().replace(/\/viewform.*$/, '/formResponse'), fields: fields });
+  const info = book.getSheetByName('Website setup') || book.insertSheet('Website setup');
+  info.clear();
+  info.getRange('A1:B1').setValues([['Netlify environment variable', 'Value (copy the whole cell)']]).setFontWeight('bold');
+  info.getRange('A2:B2').setValues([['VITE_WAITLIST_FORM', setting]]);
+  info.getRange('A4').setValue('Form (check it opens without signing in, in a private window):');
+  info.getRange('B4').setValue(form.getPublishedUrl());
+  info.setColumnWidth(1, 260);
+  info.setColumnWidth(2, 900);
+  info.getRange('B2').setWrap(true);
+
+  // Ask for permission to send email now, so the first sign-up doesn't fail.
   MailApp.getRemainingDailyQuota();
+  console.log('VITE_WAITLIST_FORM=' + setting);
 }
 
-/** Opening the web-app URL in a browser shows that it is live. */
-function doGet() {
-  return json({ ok: true, message: 'RYDO waitlist endpoint is running.' });
+/** The tab this form writes to. */
+function linkedSheet(book, form) {
+  const id = form.getId();
+  const matches = book.getSheets().filter(sheet => {
+    const url = sheet.getFormUrl();
+    return url && url.indexOf(id) !== -1;
+  });
+  if (matches.length) return matches[0];
+  // Fallback: the newest "Form Responses" tab.
+  const responses = book.getSheets().filter(sheet => /^Form Responses/.test(sheet.getName()));
+  return responses.length ? responses[responses.length - 1] : null;
 }
 
-/** The website posts one submission as JSON (sent as text/plain to avoid a CORS preflight). */
-function doPost(e) {
-  let data;
-  try {
-    data = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-  } catch (error) {
-    return json({ ok: false, message: 'The request was not valid.' });
-  }
+/** Runs for every new form row: checks it, then emails the person and the team. */
+function onWaitlistSubmit(e) {
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== SHEET_NAME) return;
+  const row = e.range.getRow();
+  const statusCell = sheet.getRange(row, QUESTIONS.length + 2);
+  const named = e.namedValues || {};
+  const read = title => String((named[title] && named[title][0]) || '').trim();
 
-  // Bots fill every field, including the hidden "company" one; people never see it.
-  if (data.company) return json({ ok: true, reference: 'WL-OK' });
-
-  const entry = clean(data);
-  const problem = validate(entry);
-  if (problem) return json({ ok: false, message: problem });
-
-  // One request per email per minute (stops double-clicks and simple floods).
-  const cache = CacheService.getScriptCache();
-  const key = 'wl:' + entry.email;
-  if (cache.get(key)) return json({ ok: true, reference: cache.get(key), duplicate: true });
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-    if (!sheet) return json({ ok: false, message: 'The waitlist sheet is not set up yet.' });
-
-    // Already on the list: return their reference, no second row or email.
-    const existing = findByEmail(sheet, entry.email);
-    if (existing) {
-      cache.put(key, existing, 60);
-      return json({ ok: true, reference: existing, duplicate: true });
-    }
-
-    const reference = 'WL-' + Utilities.getUuid().slice(0, 8).toUpperCase();
-    const row = [new Date(), reference, entry.name, entry.email, "'" + entry.phone, entry.city, entry.roles.join(', '), entry.partner ? 'Partner' : 'Customer', 'Yes', entry.page, 'Sending…'];
-    sheet.appendRow(row);
-    const rowIndex = sheet.getLastRow();
-    cache.put(key, reference, 60);
-
-    let emailStatus = 'Sent';
-    try {
-      sendPassEmail(entry, reference);
-      if (TEAM_EMAIL) notifyTeam(entry, reference);
-    } catch (error) {
-      emailStatus = 'Failed: ' + String(error).slice(0, 120);
-    }
-    sheet.getRange(rowIndex, HEADERS.indexOf('Email sent') + 1).setValue(emailStatus);
-    return json({ ok: true, reference: reference });
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function clean(data) {
-  const text = (value, max) => String(value || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, max);
-  const roles = Array.isArray(data.roles) ? data.roles.filter(role => ROLES.indexOf(role) !== -1) : [];
-  return {
-    name: text(data.name, 120),
-    email: text(data.email, 200).toLowerCase(),
-    phone: text(data.phone, 30),
-    city: text(data.city, 80),
-    roles: roles,
-    partner: roles.indexOf('Drive') !== -1 || roles.indexOf('Dispatch') !== -1,
-    consent: data.consent === true,
-    page: text(data.page, 200),
+  const entry = {
+    reference: read('Reference') || 'WL-' + Utilities.getUuid().slice(0, 8).toUpperCase(),
+    name: read('Full name').slice(0, 120),
+    email: read('Email').toLowerCase().slice(0, 200),
+    phone: read('Phone').slice(0, 30),
+    city: read('City').slice(0, 80),
+    roles: read('Roles').split(',').map(role => role.trim()).filter(role => ['Ride', 'Send', 'Drive', 'Dispatch'].indexOf(role) !== -1),
+    page: read('Page').slice(0, 200),
   };
-}
+  entry.partner = entry.roles.indexOf('Drive') !== -1 || entry.roles.indexOf('Dispatch') !== -1;
 
-function validate(entry) {
-  if (!entry.name) return 'Enter your name.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email)) return 'Enter a valid email address.';
-  if (entry.phone.replace(/\D/g, '').length < 7) return 'Enter a valid phone number.';
-  if (!entry.city) return 'Tell us your city.';
-  if (!entry.roles.length) return 'Choose at least one way you will use RYDO.';
-  if (!entry.consent) return 'Agree to receive updates to join the waitlist.';
-  return '';
-}
+  // Keep the phone exactly as typed (a leading 0 would otherwise be dropped).
+  sheet.getRange(row, QUESTIONS.indexOf('Phone') + 2).setNumberFormat('@').setValue(entry.phone);
 
-function findByEmail(sheet, email) {
-  const last = sheet.getLastRow();
-  if (last < 2) return '';
-  const emailCol = HEADERS.indexOf('Email') + 1;
-  const refCol = HEADERS.indexOf('Reference') + 1;
-  const emails = sheet.getRange(2, emailCol, last - 1, 1).getValues();
-  for (let i = 0; i < emails.length; i++) {
-    if (String(emails[i][0]).toLowerCase() === email) return String(sheet.getRange(i + 2, refCol).getValue());
+  if (!entry.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email) || !entry.roles.length) {
+    statusCell.setValue('Skipped: incomplete');
+    return;
   }
-  return '';
+  // The same email again: keep the row, but don't email twice.
+  const emailCol = QUESTIONS.indexOf('Email') + 2;
+  if (row > 2) {
+    const earlier = sheet.getRange(2, emailCol, row - 2, 1).getValues();
+    if (earlier.some(value => String(value[0]).trim().toLowerCase() === entry.email)) {
+      statusCell.setValue('Duplicate: no email sent');
+      return;
+    }
+  }
+
+  try {
+    sendPassEmail(entry, entry.reference);
+    if (TEAM_EMAIL) notifyTeam(entry, entry.reference);
+    statusCell.setValue('Sent');
+  } catch (error) {
+    statusCell.setValue('Failed: ' + String(error).slice(0, 120));
+  }
 }
 
-/** The submitter's confirmation: their waitlist pass, as in the site's final step. */
+/** Live counts on the Summary tab (rebuilt by setupForm). */
+function buildSummary(book) {
+  const summary = book.getSheetByName('Summary') || book.insertSheet('Summary');
+  summary.clear();
+  const S = SHEET_NAME + '!';
+  const rows = [
+    ['RYDO waitlist summary', ''],
+    ['Updates by itself as sign-ups arrive.', ''],
+    ['', ''],
+    ['Totals', ''],
+    ['All sign-ups', '=COUNTA(' + S + 'C2:C)'],
+    ['Customers', '=COUNTIF(' + S + 'H2:H,"Customer")'],
+    ['Partners', '=COUNTIF(' + S + 'H2:H,"Partner")'],
+    ['Joined in the last 7 days', '=COUNTIF(' + S + 'A2:A,">="&(TODAY()-7))'],
+    ['Joined today', '=COUNTIF(' + S + 'A2:A,">="&TODAY())'],
+    ['', ''],
+    ['Roles chosen (a person can choose several)', ''],
+    ['Ride', '=COUNTIF(' + S + 'G2:G,"*Ride*")'],
+    ['Send', '=COUNTIF(' + S + 'G2:G,"*Send*")'],
+    ['Drive', '=COUNTIF(' + S + 'G2:G,"*Drive*")'],
+    ['Dispatch', '=COUNTIF(' + S + 'G2:G,"*Dispatch*")'],
+    ['', ''],
+    ['Confirmation emails', ''],
+    ['Sent', '=COUNTIF(' + S + 'K2:K,"Sent")'],
+    ['Failed', '=COUNTIF(' + S + 'K2:K,"Failed*")'],
+    ['Duplicates (no email)', '=COUNTIF(' + S + 'K2:K,"Duplicate*")'],
+    ['', ''],
+    ['Sign-ups by city (type a city in column A)', ''],
+  ];
+  ['Abuja', 'Lagos', 'Port Harcourt', 'Ibadan', 'Kano'].forEach(city => rows.push([city, '=COUNTIF(' + S + 'F2:F,A' + (rows.length + 1) + ')']));
+  summary.getRange(1, 1, rows.length, 2).setValues(rows);
+  summary.getRange('A1').setFontSize(16).setFontWeight('bold');
+  [4, 11, 17, 22].forEach(r => summary.getRange(r, 1).setFontWeight('bold').setFontColor('#03291D'));
+  summary.setColumnWidth(1, 320);
+  summary.setColumnWidth(2, 120);
+}
+
+/** The person's confirmation: their waitlist pass, as on the site's final step. */
 function sendPassEmail(entry, reference) {
   const first = entry.name.split(/\s+/)[0];
   const lead = entry.partner
@@ -197,8 +261,4 @@ function notifyTeam(entry, reference) {
 
 function esc(value) {
   return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-}
-
-function json(payload) {
-  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }

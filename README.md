@@ -14,7 +14,7 @@ npm run build    # production build in dist/
 - `/waitlist` waitlist flow (`/waitlist?as=partner` preselects Drive)
 
 ## Waitlist submissions
-Submissions go to a Google Sheet, and each person gets a confirmation email. Setup: `integrations/google-sheets/SETUP.md`. Set `VITE_WAITLIST_ENDPOINT` (see `.env.example`) in `.env.local` and in Netlify.
+Submissions go to a Google Sheet through a linked Google Form, and each person gets a confirmation email. Setup: `integrations/google-sheets/SETUP.md`. Set `VITE_WAITLIST_FORM` (see `.env.example`) in `.env.local` and in Netlify.
 
 ## Structure
 - `src/data.js` landing copy and images for both audiences, plus FAQs
@@ -30,4 +30,4 @@ Submissions go to a Google Sheet, and each person gets a confirmation email. Set
 2. Netlify reads the settings from `netlify.toml`; click **Deploy**.
 3. **Domain management → Add a domain** → `getrydo.app`, then follow Netlify's DNS steps.
 
-Set the waitlist sheet URL in Netlify → **Site configuration → Environment variables**: key `VITE_WAITLIST_ENDPOINT`, value your Apps Script `/exec` URL, then redeploy. Locally it goes in `.env.local`. Env files are git-ignored (only `.env.example` is committed).
+In Netlify → **Site configuration → Environment variables**, set `VITE_WAITLIST_FORM` to cell B2 of the sheet's **Website setup** tab, then redeploy. Locally it goes in `.env.local`. Env files are git-ignored (only `.env.example` is committed).

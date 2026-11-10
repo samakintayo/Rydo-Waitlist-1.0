@@ -1,46 +1,47 @@
-# Connect the waitlist to Google Sheets (with a confirmation email)
+# Connect the waitlist to Google Sheets (with confirmation emails)
 
-Every submission becomes a row in your sheet, and the person gets an email with their RYDO waitlist pass. About 10 minutes, once.
+Every sign-up becomes a row in your sheet. The person gets an email with their RYDO waitlist pass, and getrydoapp@gmail.com gets the full details. No public web app is needed, so this works even when Apps Script doesn't offer "Anyone". Takes about 10 minutes, once.
+
+How it works: the website sends each sign-up to a Google Form linked to your sheet. A script trigger, running as you, sends the emails.
 
 ## 1. Create the sheet
-1. Go to sheets.google.com and click **Blank spreadsheet**. Name it **RYDO Waitlist**.
-2. Or upload `RYDO Waitlist.xlsx` (in this folder) to Google Drive and open it with Google Sheets (**File → Save as Google Sheets**). It has the Submissions, Summary and How to use tabs ready.
+Sign in to the Google account that should own the waitlist (ideally getrydoapp@gmail.com).
+1. Upload `RYDO Waitlist.xlsx` (in this folder) to Google Drive, open it, then **File → Save as Google Sheets**. Or start from a blank Google Sheet.
 
 ## 2. Add the script
 1. In the sheet: **Extensions → Apps Script**.
-2. Delete everything in `Code.gs` and paste the whole of `integrations/google-sheets/Code.gs`.
-3. At the top of the script you can change:
-   - `TEAM_EMAIL`: gets every submission in full (set to getrydoapp@gmail.com). Replying answers the person who signed up.
-   - `SENDER_NAME`: the sender name people see (default `RYDO`).
-   - `SITE_URL`: where the email's "Back to RYDO" button goes.
-4. Click **Save** (disk icon).
+2. Delete everything in `Code.gs` and paste the whole of `integrations/google-sheets/Code.gs`. Click **Save**.
 
-## 3. Run setup once
-1. In the function menu next to **Run**, pick **setup**, then click **Run**.
-2. Google asks for permission. Click **Review permissions**, pick your account, then **Advanced → Go to (project name) (unsafe) → Allow**. The script only touches this sheet and sends email as you.
-3. Back in the sheet, the **Submissions** tab now has dark-green headers.
+## 3. Run setupForm once
+1. In the function menu next to **Run**, choose **setupForm**, then click **Run**.
+2. Google asks for permission: **Review permissions** → your account → **Advanced → Go to … (unsafe) → Allow**. ("Unsafe" only means Google hasn't reviewed your own script.)
+3. When it finishes, the sheet has:
+   - **Submissions**: where sign-ups arrive (linked to the new form);
+   - **Summary**: live counts;
+   - **Website setup**: the value for the website, in cell **B2**.
 
-## 4. Publish it as a web app
-1. In Apps Script: **Deploy → New deployment**.
-2. Click the gear next to "Select type" and choose **Web app**.
-3. Set **Execute as: Me** and **Who has access: Anyone**. ("Anyone" lets the website send submissions; nobody can read your sheet through it.)
-4. Click **Deploy** and copy the **Web app URL** (it ends in `/exec`).
-5. Optional check: open that URL in your browser. It should say `RYDO waitlist endpoint is running.`
+You don't need **Deploy** at all.
 
-## 5. Point the website at it
-- **On your computer:** create `.env.local` in the project folder with
-  `VITE_WAITLIST_ENDPOINT=https://script.google.com/macros/s/…/exec`
-  then restart `npm run dev`.
-- **On your host (Vercel, Netlify and similar):** add the same `VITE_WAITLIST_ENDPOINT` variable in the project settings and redeploy.
+## 4. Check the form is open to everyone
+Open the form link from **Website setup → B4** in a private window (Cmd + Shift + N) that isn't signed in to Google. It should open the form without asking you to sign in. If it asks to sign in, the account blocks public forms: in the form, open **Settings → Responses** and turn off **Restrict to users in …**, or use a regular Gmail account.
+
+## 5. Connect the website (Netlify)
+1. Copy cell **B2** from the **Website setup** tab (it starts with `{"action":`).
+2. In Netlify: **Site configuration → Environment variables → Add a variable**. Key `VITE_WAITLIST_FORM`, value: paste B2 exactly.
+3. Remove the old `VITE_WAITLIST_ENDPOINT` variable if it's there.
+4. **Deploys → Trigger deploy → Clear cache and deploy site**.
+
+On your computer, put the same line in `.env.local`: `VITE_WAITLIST_FORM={…}`.
 
 ## 6. Test
-Join the waitlist on the site with your own email. Within a few seconds:
+Join the waitlist on getrydo.app with your own email. Within a minute:
 - a new row appears in **Submissions** (the **Email sent** column says `Sent`);
-- you receive "You’re on the RYDO waitlist" with your pass.
+- you get "You’re on the RYDO waitlist" with your pass;
+- getrydoapp@gmail.com gets the sign-up details.
 
 ## Good to know
-- **Changing the script later:** use **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy**. This keeps the same URL. A *new* deployment gets a new URL, which you'd have to update on the site.
-- **Email limits:** Google sends about **100 emails a day** from a personal Gmail account, or **1,500** with Google Workspace. Rows are still saved when the limit is reached; the **Email sent** column then shows the error.
-- **Duplicates:** the same email address isn't added twice and doesn't get a second email.
-- **Spam:** a hidden form field catches most bots, and repeat submissions within a minute are ignored.
+- **Changing the script later:** edit and **Save**; no redeploy needed. Run **setupForm** again only if you change the questions.
+- **Email limits:** about **100 emails a day** from a personal Gmail account (each sign-up sends two), **1,500** with Google Workspace. Rows are still saved when the limit is reached; **Email sent** shows the error.
+- **Duplicates:** the same email gets a row marked `Duplicate: no email sent`, so nobody is emailed twice.
+- **Don't edit the form's questions** (titles or order). The website and script rely on them.
 - **Data:** the sheet holds personal details (name, email, phone). Share it only with people who need it.
