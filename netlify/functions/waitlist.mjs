@@ -23,36 +23,60 @@ async function brevo(path, init = {}) {
   return { ok: response.ok, status: response.status, body: text ? JSON.parse(text) : {} };
 }
 
-function layout(title, inner) {
-  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F6F8F0">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8F0;padding:32px 16px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border-radius:24px;padding:32px 28px;font-family:Arial,Helvetica,sans-serif;color:#00170A">
-<tr><td><img src="${LOGO}" width="48" height="48" alt="RYDO" style="display:block;border:0;border-radius:12px"></td></tr>
-<tr><td style="padding-top:24px;font-size:24px;font-weight:800;line-height:1.2">${escape(title)}</td></tr>
+function layout(title, intro, inner = '', preview = intro) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>${escape(title)}</title>
+<style>
+@media (prefers-color-scheme: dark) {
+  .bg { background:#0A0C0B !important; } .card { background:#141716 !important; }
+  .ink { color:#F1F3F0 !important; } .muted { color:#8C948E !important; } .rule { border-color:#222724 !important; }
+}
+@media (max-width:520px) { .card { padding:28px 22px !important; } .title { font-size:24px !important; } }
+</style></head>
+<body class="bg" style="margin:0;padding:0;background:#F3F4F1;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden">${escape(preview).slice(0, 120)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="bg" style="background:#F3F4F1"><tr><td align="center" style="padding:40px 16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
+<tr><td style="padding:0 4px 18px"><table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="vertical-align:middle"><img src="${LOGO}" width="36" height="36" alt="" style="display:block;border:0;border-radius:10px"></td>
+<td class="ink" style="vertical-align:middle;padding-left:10px;font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.3px;color:#0B120D">RYDO</td>
+</tr></table></td></tr>
+<tr><td class="card" style="background:#FFFFFF;border-radius:24px;padding:36px 32px;font-family:Helvetica,Arial,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+<tr><td class="ink title" style="font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.5px;color:#0B120D">${escape(title)}</td></tr>
+<tr><td class="muted" style="padding-top:12px;font-size:15px;line-height:1.6;color:#4E5751">${escape(intro)}</td></tr>
 ${inner}
-<tr><td style="padding-top:28px;border-top:1px solid #DCE2D1;font-size:12px;line-height:1.5;color:#5C6B61">RYDO · Move on your terms. · <a href="${SITE}" style="color:#12301F">getrydo.app</a></td></tr>
+</table></td></tr>
+<tr><td class="muted" style="padding:20px 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#6A726C">RYDO · Move on your terms · <a href="${SITE}" style="color:#6A726C">getrydo.app</a></td></tr>
 </table></td></tr></table></body></html>`;
 }
 
 function passEmail(entry) {
   const partner = entry.waitlist === 'Partner';
   const intro = partner
-    ? 'You’re on the RYDO partner waitlist. We’ll share onboarding steps and access-plan details when they’re ready.'
-    : 'You’re on the RYDO waitlist. We’ll let you know when bookings become available in your area.';
-  const row = (label, value) => `<tr><td style="padding:6px 0;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#435349">${label}</td></tr><tr><td style="padding-bottom:10px;font-size:17px;font-weight:700">${escape(value)}</td></tr>`;
-  const inner = `<tr><td style="padding-top:12px;font-size:15px;line-height:1.55;color:#435349">Hi ${escape(entry.firstName)}, ${intro}</td></tr>
-<tr><td style="padding-top:20px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${partner ? '#DEFFCC' : '#D6DFFF'};border-radius:20px;padding:20px 22px">
-${row('RYDO waitlist pass', entry.reference)}${row('Name', entry.name)}${row('Selected roles', entry.roles)}${row('City', entry.city)}
-<tr><td style="padding-top:8px;font-size:17px;font-weight:800">Move on your terms.</td></tr></table></td></tr>
-<tr><td style="padding-top:16px;font-size:12.5px;line-height:1.5;color:#5C6B61">Your waitlist pass confirms your registration of interest. It doesn’t guarantee early access or activate a driver or dispatch account.</td></tr>`;
-  const text = `Hi ${entry.firstName}, ${intro}\n\nRYDO waitlist pass: ${entry.reference}\nName: ${entry.name}\nRoles: ${entry.roles}\nCity: ${entry.city}\n\nMove on your terms.\n${SITE}`;
-  return { subject: 'You’re on the RYDO waitlist', html: layout('You’re on the RYDO waitlist', inner), text };
+    ? `Hi ${entry.firstName}, you’re on the RYDO partner waitlist. We’ll share onboarding steps and access-plan details when they’re ready.`
+    : `Hi ${entry.firstName}, you’re on the RYDO waitlist. We’ll let you know when bookings open in your area.`;
+  const cell = (label, value) => `<td style="vertical-align:top;padding-top:16px"><div style="font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#8C948E">${label}</div><div style="padding-top:4px;font-size:15px;font-weight:700;color:#F1F3F0">${escape(value)}</div></td>`;
+  // The pass: a dark ticket with the reference in lime, the same look in light and dark mail apps.
+  const inner = `<tr><td style="padding-top:24px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B120D;border-radius:20px"><tr><td style="padding:22px 24px">
+<div style="font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#8C948E">${partner ? 'Partner waitlist pass' : 'Waitlist pass'}</div>
+<div style="padding-top:6px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:24px;font-weight:700;letter-spacing:2px;color:#C1FF2A">${escape(entry.reference)}</div>
+<div style="padding-top:14px;font-size:20px;font-weight:800;letter-spacing:-0.3px;color:#F1F3F0">${escape(entry.name)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${cell('Roles', entry.roles)}${cell('City', entry.city)}</tr></table>
+</td></tr></table></td></tr>
+<tr><td style="padding-top:24px"><a href="${SITE}" style="display:inline-block;background:#C1FF2A;color:#00170A;font-size:15px;font-weight:700;text-decoration:none;padding:13px 24px;border-radius:999px">Visit getrydo.app</a></td></tr>
+<tr><td class="muted rule" style="padding-top:24px;font-size:12.5px;line-height:1.55;color:#6A726C">Your waitlist pass confirms your registration of interest. It doesn’t guarantee early access or activate a driver or dispatch account.</td></tr>`;
+  const text = `${intro}\n\nWaitlist pass: ${entry.reference}\nName: ${entry.name}\nRoles: ${entry.roles}\nCity: ${entry.city}\n\nMove on your terms.\n${SITE}`;
+  return { subject: 'You’re on the RYDO waitlist', html: layout('You’re on the list', intro, inner), text };
 }
 
 function teamEmail(entry) {
   const lines = [['Reference', entry.reference], ['Name', entry.name], ['Email', entry.email], ['Phone', entry.phone], ['City', entry.city], ['Roles', entry.roles], ['Waitlist', entry.waitlist], ['Page', entry.page]];
-  const inner = `<tr><td style="padding-top:12px"><table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.6">${lines.map(([k, v]) => `<tr><td style="padding-right:16px;color:#5C6B61">${k}</td><td style="font-weight:700">${escape(v || '—')}</td></tr>`).join('')}</table></td></tr>`;
-  return { subject: `New ${entry.waitlist.toLowerCase()} sign-up: ${entry.name} (${entry.city})`, html: layout('New waitlist sign-up', inner), text: lines.map(([k, v]) => `${k}: ${v || '—'}`).join('\n') };
+  const inner = `<tr><td style="padding-top:20px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.5">${lines.map(([k, v]) => `<tr><td class="muted rule" style="padding:10px 0;border-top:1px solid #ECEEEA;color:#6A726C;width:96px">${k}</td><td class="ink rule" style="padding:10px 0;border-top:1px solid #ECEEEA;font-weight:700;color:#0B120D;word-break:break-word">${escape(v || '—')}</td></tr>`).join('')}</table></td></tr>
+<tr><td class="muted" style="padding-top:16px;font-size:13px;color:#6A726C">Reply to this email to write to ${escape(entry.firstName)} directly.</td></tr>`;
+  return { subject: `New ${entry.waitlist.toLowerCase()} sign-up: ${entry.name} (${entry.city})`, html: layout('New waitlist sign-up', `${entry.name} joined the ${entry.waitlist.toLowerCase()} waitlist from ${entry.city}.`, inner), text: lines.map(([k, v]) => `${k}: ${v || '—'}`).join('\n') };
 }
 
 export default async request => {
