@@ -11,6 +11,8 @@
 // ---- Settings -------------------------------------------------------------------------------
 /** Team inbox: gets every submission in full (reply goes straight to the person). '' turns it off. */
 const TEAM_EMAIL = 'getrydoapp@gmail.com';
+// Brevo (the website's Netlify function) now sends the pass and team emails. Set to true only if Brevo is off.
+const SEND_EMAILS = false;
 /** Name shown as the sender of the emails. */
 const SENDER_NAME = 'RYDO';
 /** Where "Back to RYDO" in the email points. */
@@ -145,6 +147,10 @@ function onWaitlistSubmit(e) {
     }
   }
 
+  if (!SEND_EMAILS) {
+    statusCell.setValue('Sent by Brevo');
+    return;
+  }
   try {
     sendPassEmail(entry, entry.reference);
     if (TEAM_EMAIL) notifyTeam(entry, entry.reference);

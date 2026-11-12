@@ -1,6 +1,7 @@
 /**
- * Sends a waitlist sign-up to the RYDO Google Form (integrations/google-sheets). The form saves it
- * to the sheet, and a script trigger emails the person and the team.
+ * Sends a waitlist sign-up to Brevo through the site's Netlify function (netlify/functions/waitlist.mjs):
+ * it joins the "RYDO WAITLIST" list, and Brevo emails the person their pass and the team the details.
+ * When VITE_WAITLIST_FORM is set, the Google Sheet gets a copy too (no emails from there).
  *
  * VITE_WAITLIST_FORM is the value setupForm() writes to the sheet's "Website setup" tab:
  * {"action":"https://docs.google.com/forms/d/e/…/formResponse","fields":{"name":"entry.123",…}}
@@ -26,20 +27,35 @@ export function newReference() {
   return 'WL-' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
-export async function submitWaitlist(entry) {
-  if (!CONFIG) {
-    // Local previews without the form still walk through every step.
-    if (import.meta.env.DEV) return { ok: true, preview: true };
-    throw new Error('The waitlist isn’t connected yet. Please try again later.');
-  }
+async function toGoogleSheet(entry) {
   const body = new URLSearchParams();
   for (const [key, field] of Object.entries(CONFIG.fields)) body.append(field, String(entry[key] ?? ''));
+  // Google Forms doesn't send CORS headers, so the reply can't be read ("no-cors"). A network
+  // failure still throws; otherwise the form has accepted the answers.
+  await fetch(CONFIG.action, { method: 'POST', mode: 'no-cors', body });
+}
+
+const FUNCTION_URL = '/.netlify/functions/waitlist';
+
+export async function submitWaitlist(entry, honeypot = '') {
+  const sheet = CONFIG ? toGoogleSheet(entry).then(() => true, () => false) : Promise.resolve(false);
+  let response;
   try {
-    // Google Forms doesn't send CORS headers, so the reply can't be read ("no-cors"). A network
-    // failure still throws; otherwise the form has accepted the answers.
-    await fetch(CONFIG.action, { method: 'POST', mode: 'no-cors', body });
+    response = await fetch(FUNCTION_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...entry, company: honeypot }) });
   } catch {
+    if (await sheet) return { ok: true };
     throw new Error('We couldn’t reach the waitlist. Check your connection and try again.');
   }
-  return { ok: true };
+  if (response.ok) {
+    const result = await response.json().catch(() => ({}));
+    await sheet;
+    return { ok: true, reference: result.reference, existing: !!result.existing };
+  }
+  // No function here (local Vite preview) or Brevo not set up yet: fall back to the sheet or a preview.
+  if (response.status === 404 || response.status === 503) {
+    if (await sheet) return { ok: true };
+    if (import.meta.env.DEV) return { ok: true, preview: true };
+  }
+  const failure = await response.json().catch(() => ({}));
+  throw new Error(failure.error || 'We couldn’t add you to the waitlist just now. Please try again in a minute.');
 }

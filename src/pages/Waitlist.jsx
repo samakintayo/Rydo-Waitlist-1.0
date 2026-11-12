@@ -68,7 +68,8 @@ export default function Waitlist() {
       const ref = reference || newReference();
       setReference(ref);
       submitWaitlist({ reference: ref, name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), city: f.city.trim(), roles: tags.join(', '), waitlist: partner ? 'Partner' : 'Customer', consent: 'Yes', page: window.location.href })
-        .then(() => go(3), failure => setErr({ submit: failure.message }))
+        // Signing up again with the same email keeps the first pass number.
+        .then(result => { if (result.reference) setReference(result.reference); go(3); }, failure => setErr({ submit: failure.message }))
         .finally(() => setBusy(false));
     }
   };
